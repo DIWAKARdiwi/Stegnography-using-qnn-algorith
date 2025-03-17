@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Steganography with QNN</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f0f2f5;
+            padding-top: 50px;
+        }
+        .container {
+            max-width: 600px;
+            margin: auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        .image-preview {
+            width: 100%;
+            max-height: 400px;
+            object-fit: contain;
+            margin-top: 15px;
+            display: none;
+        }
+        .btn-primary {
+            background-color: #007bff;
+            border-color: #007bff;
+        }
+        label {
+            font-weight: bold;
+        }
+        .result {
+            background-color: #f9f9f9;
+            padding: 15px;
+            margin-top: 15px;
+            border-radius: 5px;
+            display: none;
+        }
+        #loading {
+            display: none;
+            text-align: center;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Image Steganography with QNN</h1>
+        <div class="form-group">
+            <label for="action">What would you like to do?</label>
+            <select class="form-control" id="action">
+                <option value="">Select an option</option>
+                <option value="encode">Encode Data into Image</option>
+                <option value="decode">Decode Data from Image</option>
+                <option value="generate_qr">Generate QR Code</option>
+                <option value="calculate_psnr">Calculate PSNR</option>
+            </select>
+        </div>
+
+        <div id="encodeSection" style="display:none;">
+            <h2>Encode Data into Image</h2>
+            <form action="/encode" method="post" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label for="image">Select Image:</label>
+                    <input type="file" class="form-control-file" name="image" id="imageInput" required>
+                    <img id="imagePreview" class="image-preview" src="#" alt="Image Preview">
+                </div>
+                <div class="form-group">
+                    <label for="secret_data">Secret Data:</label>
+                    <input type="text" class="form-control" name="secret_data" required>
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Encode</button>
+            </form>
+        </div>
+
+        <div id="decodeSection" style="display:none;">
+            <h2>Decode Data from Image</h2>
+            <form id="decodeForm" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label for="encodedImage">Select Encoded Image:</label>
+                    <input type="file" class="form-control-file" name="image" id="encodedImageInput" required>
+                    <img id="encodedImagePreview" class="image-preview" src="#" alt="Encoded Image Preview">
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Decode</button>
+            </form>
+            <div id="decodedResult" class="result">
+                <h4>Decoded Data:</h4>
+                <p id="decodedData"></p>
+            </div>
+        </div>
+
+        <div id="qrSection" style="display:none;">
+            <h2>Generate QR Code</h2>
+            <form id="qrForm">
+                <div class="form-group">
+                    <label for="qr_data">Data for QR Code:</label>
+                    <input type="text" class="form-control" id="qr_data" name="qr_data" required>
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Generate QR Code</button>
+            </form>
+            <div id="qrResult" class="result">
+                <h4>Generated QR Code:</h4>
+                <img id="qrCodeImage" src="#" alt="QR Code">
+                <a id="downloadQR" href="#" download="qrcode.png" class="btn btn-success mt-3">Download QR Code</a>
+            </div>
+        </div>
+
+        <div id="psnrSection" style="display:none;">
+            <h2>Calculate PSNR</h2>
+            <form id="psnrForm" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label for="original">Original Image:</label>
+                    <input type="file" class="form-control-file" name="original" required>
+                </div>
+                <div class="form-group">
+                    <label for="modified">Encoded Image:</label>
+                    <input type="file" class="form-control-file" name="modified" required>
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Calculate PSNR</button>
+            </form>
+            <!-- PSNR Result Section -->
+            <div id="psnrResult" class="result" style="display:none;">
+                <h4>PSNR Result:</h4>
+                <p id="psnrValue"></p>
+            </div>
+        </div>
+
+        <div id="loading">
+            <p>Loading.....</p>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script>
+        document.getElementById('action').addEventListener('change', function() {
+            var action = this.value;
+            document.getElementById('encodeSection').style.display = (action === 'encode') ? 'block' : 'none';
+            document.getElementById('decodeSection').style.display = (action === 'decode') ? 'block' : 'none';
+            document.getElementById('qrSection').style.display = (action === 'generate_qr') ? 'block' : 'none';
+            document.getElementById('psnrSection').style.display = (action === 'calculate_psnr') ? 'block' : 'none';
+        });
+
+        document.getElementById('qrForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+            const qrData = document.getElementById('qr_data').value;
+            document.getElementById('loading').style.display = 'block';
+            fetch('/generate_qr', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ qr_data: qrData })
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('loading').style.display = 'none';
+                const qrCodeImage = document.getElementById('qrCodeImage');
+                const downloadQR = document.getElementById('downloadQR');
+                qrCodeImage.src = `data:image/png;base64,${data.qr_code}`;
+                qrCodeImage.style.display = 'block';
+                downloadQR.href = qrCodeImage.src;
+                document.getElementById('qrResult').style.display = 'block';
+            });
+        });
+
+        document.getElementById('imageInput').addEventListener('change', function(event) {
+            const [file] = event.target.files;
+            if (file) {
+                const imagePreview = document.getElementById('imagePreview');
+                imagePreview.src = URL.createObjectURL(file);
+                imagePreview.style.display = 'block';
+            }
+        });
+
+        document.getElementById('encodedImageInput').addEventListener('change', function(event) {
+            const [file] = event.target.files;
+            if (file) {
+                const encodedImagePreview = document.getElementById('encodedImagePreview');
+                encodedImagePreview.src = URL.createObjectURL(file);
+                encodedImagePreview.style.display = 'block';
+            }
+        });
+
+        document.getElementById('decodeForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+            const formData = new FormData(this);
+            document.getElementById('loading').style.display = 'block';
+
+            fetch('/decode', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.text())
+            .then(data => {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('decodedResult').style.display = 'block';
+                document.getElementById('decodedData').textContent = data;
+            });
+        });
+
+        $(document).ready(function() {
+            $('#psnrForm').on('submit', function(e) {
+                e.preventDefault();
+
+                var formData = new FormData(this);
+
+                // Show loading indicator
+                $('#loading').show();
+
+                $.ajax({
+                    url: '/calculate_psnr',
+                    type: 'POST',
+                    data: formData,
+                    contentType: false,
+                    processData: false,
+                    success: function(response) {
+                        // Hide the loading indicator
+                        $('#loading').hide();
+
+                        // Display PSNR result
+                        $('#psnrResult').show();
+                        $('#psnrValue').html("PSNR: " + response.psnr);
+                    },
+                    error: function(xhr, status, error) {
+                        // Hide the loading indicator
+                        $('#loading').hide();
+
+                        // Show error message if something goes wrong
+                        $('#psnrResult').show();
+                        $('#psnrValue').html("Error: " + error);
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>
